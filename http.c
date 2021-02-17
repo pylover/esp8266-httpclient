@@ -24,12 +24,11 @@ typedef struct {
     int buffer_size;
     http_callback user_callback;
     void *arg;
-} request_args;
+} httprequest;
 
 
-static char * ICACHE_FLASH_ATTR esp_strdup(const char * str)
-{
-    os_printf("-----esp_strdup----\r\n");
+static ICACHE_FLASH_ATTR
+char * esp_strdup(const char * str) {
     if (str == NULL) {
         return NULL;
     }
@@ -42,32 +41,24 @@ static char * ICACHE_FLASH_ATTR esp_strdup(const char * str)
     return new_str;
 }
 
-static int ICACHE_FLASH_ATTR
-esp_isupper(char c)
-{
-    os_printf("-----esp_isupper----\r\n");
+static ICACHE_FLASH_ATTR
+int esp_isupper(char c) {
     return (c >= 'A' && c <= 'Z');
 }
 
-static int ICACHE_FLASH_ATTR
-esp_isalpha(char c)
-{
-    os_printf("-----esp_isalpha----\r\n");
+static ICACHE_FLASH_ATTR
+int esp_isalpha(char c) {
     return ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'));
 }
 
 
-static int ICACHE_FLASH_ATTR
-esp_isspace(char c)
-{
-    os_printf("-----esp_isspace----\r\n");
+static ICACHE_FLASH_ATTR
+int esp_isspace(char c) {
     return (c == ' ' || c == '\t' || c == '\n' || c == '\12');
 }
 
-static int ICACHE_FLASH_ATTR
-esp_isdigit(char c)
-{
-    os_printf("-----esp_isdigit----\r\n");
+static ICACHE_FLASH_ATTR
+int esp_isdigit(char c) {
     return (c >= '0' && c <= '9');
 }
 
@@ -77,12 +68,8 @@ esp_isdigit(char c)
  * Ignores `locale' stuff.  Assumes that the upper and lower case
  * alphabets and digits are each contiguous.
  */
-long ICACHE_FLASH_ATTR
-esp_strtol(nptr, endptr, base)
-    const char *nptr;
-    char **endptr;
-    int base;
-{
+ICACHE_FLASH_ATTR
+long esp_strtol(const char *nptr, char **endptr, int base) {
     os_printf("-----esp_strtol----\r\n");
     const char *s = nptr;
     unsigned long acc;
@@ -164,9 +151,9 @@ esp_strtol(nptr, endptr, base)
     return (acc);
 }
 
-static int ICACHE_FLASH_ATTR chunked_decode(const char * chunked, char * decode)
-{
-    os_printf("-----chunked_decode----\r\n");
+
+static ICACHE_FLASH_ATTR 
+int chunked_decode(const char *chunked, char *decode) {
 
     int i = 0, j = 0;
     int decode_size = 0;
@@ -176,7 +163,6 @@ static int ICACHE_FLASH_ATTR chunked_decode(const char * chunked, char * decode)
         char * endstr = NULL;
         //[chunk-size]
         i = esp_strtol(str + j, endstr, 16);
-        DEBUG("Chunk Size:%d\r\n", i);
         if (i <= 0) 
             break;
         //[chunk-size-end-ptr]
@@ -200,12 +186,11 @@ static int ICACHE_FLASH_ATTR chunked_decode(const char * chunked, char * decode)
     return j;
 }
 
-static void ICACHE_FLASH_ATTR receive_callback(void * arg, char * buf, unsigned short len)
-{
-    os_printf("-----receive_callback----\r\n");
+static ICACHE_FLASH_ATTR 
+void receive_callback(void * arg, char * buf, unsigned short len) {
 
     struct espconn * conn = (struct espconn *)arg;
-    request_args * req = (request_args *)conn->reverse;
+    httprequest * req = (httprequest *)conn->reverse;
 
     if (req->buffer == NULL) {
         return;
@@ -230,7 +215,8 @@ static void ICACHE_FLASH_ATTR receive_callback(void * arg, char * buf, unsigned 
     req->buffer_size = new_size;
     DEBUG("%s\n", req->buffer);
     
-    char * contentlength_header = (char *)os_strstr(req->buffer, "Content-Length");
+    char *contentlength_header = (char *)os_strstr(req->buffer, 
+          "Content-Length");
     uint16_t contentlength;
     if (contentlength_header) {
         contentlength = atoi(contentlength_header);
@@ -241,15 +227,15 @@ static void ICACHE_FLASH_ATTR receive_callback(void * arg, char * buf, unsigned 
     }
 }
 
-static void ICACHE_FLASH_ATTR sent_callback(void * arg)
-{
-    os_printf("-----sent_callback----\r\n");
+
+static ICACHE_FLASH_ATTR 
+void sent_callback(void * arg) {
 
     struct espconn * conn = (struct espconn *)arg;
-    request_args * req = (request_args *)conn->reverse;
+    httprequest * req = (httprequest *)conn->reverse;
 
     if (req->form_data == NULL) {
-        DEBUG("All sent\n");
+        INFO("HTTP form sent\n");
     }
     else {
         // The headers were sent, now send the contents.
@@ -260,23 +246,21 @@ static void ICACHE_FLASH_ATTR sent_callback(void * arg)
     }
 }
 
-static void ICACHE_FLASH_ATTR connect_callback(void * arg)
-{
-    os_printf("-----connect_callback----\r\n");
 
-    DEBUG("Connected\n");
+static ICACHE_FLASH_ATTR 
+void connect_callback(void * arg) {
     struct espconn * conn = (struct espconn *)arg;
-    request_args * req = (request_args *)conn->reverse;
+    httprequest * req = (httprequest *)conn->reverse;
 
     espconn_regist_recvcb(conn, receive_callback);
     espconn_regist_sentcb(conn, sent_callback);
 
     const char * method = req->verb;
-    DEBUG("Verb: %s\n", method);
     char form_headers[32] = "";
 
     if (req->form_data != NULL) { // If there is data this is a POST request.
-        os_sprintf(form_headers, "Content-Length: %d\r\n", strlen(req->form_data));
+        os_sprintf(form_headers, "Content-Length: %d\r\n", 
+                strlen(req->form_data));
     }
 
     char buf[
@@ -289,14 +273,15 @@ static void ICACHE_FLASH_ATTR connect_callback(void * arg)
     ];
     int len = os_sprintf(
             buf,
-             "%s %s HTTP/1.1\r\n"
-             "Host: %s:%d\r\n"
-             "Connection: close\r\n"
-             "User-Agent: ESP8266\r\n"
-             "%s"
-             "%s"
-             "\r\n",
-             method, req->path, req->hostname, req->port, req->headers, form_headers);
+            "%s %s HTTP/1.1\r\n"
+            "Host: %s:%d\r\n"
+            "Connection: close\r\n"
+            "User-Agent: ESP8266\r\n"
+            "%s"
+            "%s"
+            "\r\n",
+            method, req->path, req->hostname, req->port, req->headers, 
+            form_headers);
 
     espconn_sent(conn, (uint8_t *)buf, len);
     //os_printf("send http data %d : \n%s \r\n",len,buf);
@@ -304,6 +289,7 @@ static void ICACHE_FLASH_ATTR connect_callback(void * arg)
     req->headers = NULL;
     DEBUG("Sending request header\n");
 }
+
 
 static void ICACHE_FLASH_ATTR 
 disconnect_callback(void * arg) {
@@ -315,14 +301,15 @@ disconnect_callback(void * arg) {
     }
 
     if(conn->reverse != NULL) {
-        request_args * req = (request_args *)conn->reverse;
+        httprequest * req = (httprequest *)conn->reverse;
         int http_status = -1;
         char * body = "";
         if (req->buffer == NULL) {
             os_printf("Buffer shouldn't be NULL\n");
         }
         else if (req->buffer[0] != '\0') {
-            // FIXME: make sure this is not a partial response, using the Content-Length header.
+            // FIXME: make sure this is not a partial response, using the 
+            // Content-Length header.
 
             const char * version = "HTTP/1.1 ";
             if (os_strncmp(req->buffer, version, strlen(version)) != 0) {
@@ -360,15 +347,16 @@ disconnect_callback(void * arg) {
     os_free(conn);
 }
 
+
 static ICACHE_FLASH_ATTR 
-void error_callback(void *arg, sint8 errType) {
+void error_callback(void *arg, int8_t errType) {
     DEBUG("Disconnected with error: %d\n", errType);
     disconnect_callback(arg);
 }
 
 
 static ICACHE_FLASH_ATTR 
-void http_connect(request_args *req, ip_addr_t *addr) {
+void http_connect(httprequest *req, ip_addr_t *addr) {
     struct espconn *conn = os_malloc(sizeof(struct espconn));
     espconn_set_opt(conn, ESPCONN_NODELAY);
     conn->type = ESPCONN_TCP;
@@ -388,9 +376,9 @@ void http_connect(request_args *req, ip_addr_t *addr) {
 
 
 static ICACHE_FLASH_ATTR 
-void dns_callback(const char * hostname, ip_addr_t * addr, void * arg) {
+void dns_callback(const char *hostname, ip_addr_t *addr, void *arg) {
     //TODO: rename to requestargs
-    request_args *req = (request_args *)arg;
+    httprequest *req = (httprequest *)arg;
 
     if (addr == NULL) {
         os_printf("DNS failed for %s\n", hostname);
@@ -410,12 +398,13 @@ void dns_callback(const char * hostname, ip_addr_t * addr, void * arg) {
     }
 }
 
+
 static ICACHE_FLASH_ATTR 
-request_args * create_request(const char *hostname, const char *verb, 
+httprequest * create_request(const char *hostname, const char *verb, 
         const char *path, const char *headers, const char * body, 
         http_callback cb, void *arg) {
 
-    request_args *req = (request_args *)os_malloc(sizeof(request_args));
+    httprequest *req = (httprequest *)os_malloc(sizeof(httprequest));
     req->hostname = esp_strdup(hostname);
     req->verb = esp_strdup(verb);
     req->path = esp_strdup(path);
@@ -436,20 +425,21 @@ ICACHE_FLASH_ATTR
 void http_send(const char * hostname, const char *verb, const char * path, 
         const char *headers, const char * body, http_callback cb, void *arg) {
 
-    request_args *req = create_request(hostname, verb, path, headers, body,
+    httprequest *req = create_request(hostname, verb, path, headers, body,
             cb, arg);
 
     DEBUG("DNS request\n");
     ip_addr_t addr;
-    err_t error = espconn_gethostbyname(
-            (struct espconn *) req, // It seems we don't need a real espconn pointer here.
-            hostname, &addr, dns_callback);
+    // It seems we don't need a real espconn pointer here.
+    err_t error = espconn_gethostbyname((struct espconn *)req, hostname, 
+            &addr, dns_callback);
 
     if (error == ESPCONN_INPROGRESS) {
         DEBUG("DNS pending\n");
     }
     else if (error == ESPCONN_OK) {
-        // Already in the local names table (or hostname was an IP address), execute the callback ourselves.
+        // Already in the local names table (or hostname was an IP address), 
+        // execute the callback ourselves.
         dns_callback(hostname, &addr, req);
     }
     else {
@@ -459,14 +449,15 @@ void http_send(const char * hostname, const char *verb, const char * path,
         else {
             os_printf("DNS error code %d\n", error);
         }
-        dns_callback(hostname, NULL, req); // Handle all DNS errors the same way.
+        // Handle all DNS errors the same way.
+        dns_callback(hostname, NULL, req); 
     }
 }
 
 
 static ICACHE_FLASH_ATTR 
 void unscb(struct unsrecord *rec, void *arg) {
-    request_args *req = (request_args *)arg;
+    httprequest *req = (httprequest *)arg;
     http_connect(req, &rec->address);
 }
 
@@ -474,10 +465,8 @@ void unscb(struct unsrecord *rec, void *arg) {
 ICACHE_FLASH_ATTR 
 void http_send_uns(const char *hostname, const char *verb, const char * path, 
         const char *headers, const char * body, http_callback cb, void *arg) {
-    request_args *req = create_request(hostname, verb, path, headers, body,
+    httprequest *req = create_request(hostname, verb, path, headers, body,
             cb, arg);
     uns_discover(req->hostname, unscb, req);
 }
-
-
 
