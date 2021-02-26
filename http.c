@@ -162,7 +162,7 @@ int chunked_decode(const char *chunked, char *decode) {
     {
         char * endstr = NULL;
         //[chunk-size]
-        i = esp_strtol(str + j, endstr, 16);
+        i = esp_strtol(str + j, &endstr, 16);
         if (i <= 0) 
             break;
         //[chunk-size-end-ptr]
