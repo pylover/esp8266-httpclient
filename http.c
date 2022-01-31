@@ -24,6 +24,7 @@ typedef struct {
     int buffer_size;
     http_callback user_callback;
     void *arg;
+    bool tls;
 } httprequest;
 
 
@@ -371,6 +372,8 @@ void http_connect(httprequest *req, ip_addr_t *addr) {
     espconn_regist_connectcb(conn, connect_callback);
     espconn_regist_disconcb(conn, disconnect_callback);
     espconn_regist_reconcb(conn, error_callback);
+    
+
     espconn_connect(conn);
 }
 
