@@ -203,7 +203,13 @@ void receive_callback(void * arg, char * buf, unsigned short len) {
     if (new_size > BUFFER_SIZE_MAX || NULL == (new_buffer = (char *)os_malloc(new_size))) {
         os_printf("Response too long (%d)\n", new_size);
         req->buffer[0] = '\0'; // Discard the buffer to avoid using an incomplete response.
-        espconn_disconnect(conn);
+#if TLS_ENABLED
+        if (req->tls)
+            espconn_secure_disconnect(conn);
+        else
+#endif
+            espconn_disconnect(conn);
+
         return; // The disconnect callback will be called.
     }
 
@@ -223,7 +229,12 @@ void receive_callback(void * arg, char * buf, unsigned short len) {
         contentlength = atoi(contentlength_header);
         DEBUG("Content-Length: %d\n", contentlength);
         if (contentlength == 0) {
-            espconn_disconnect(conn);
+#if TLS_ENABLED
+            if (req->tls)
+                 espconn_secure_disconnect(conn);
+#endif
+            else
+                 espconn_disconnect(conn);
         }
     }
 }
@@ -241,7 +252,14 @@ void sent_callback(void * arg) {
     else {
         // The headers were sent, now send the contents.
         DEBUG("Sending request body\n");
-        espconn_sent(conn, (uint8_t *)req->form_data, strlen(req->form_data));
+#if TLS_ENABLED
+        if (req->tls)
+            espconn_secure_sent(conn, (uint8_t *)req->form_data, 
+                    strlen(req->form_data));
+        else
+#endif
+            espconn_sent(conn, (uint8_t *)req->form_data, 
+                    strlen(req->form_data));
         os_free(req->form_data);
         req->form_data = NULL;
     }
@@ -284,7 +302,13 @@ void connect_callback(void * arg) {
             method, req->path, req->hostname, req->port, req->headers, 
             form_headers);
 
-    espconn_sent(conn, (uint8_t *)buf, len);
+#ifdef TLS_ENABLED
+    if (req->tls)
+        espconn_secure_send(conn, (uint8_t *)buf, len);
+    else
+#endif
+        espconn_sent(conn, (uint8_t *)buf, len);
+
     //os_printf("send http data %d : \n%s \r\n",len,buf);
     os_free(req->headers);
     req->headers = NULL;
@@ -341,7 +365,9 @@ disconnect_callback(void * arg) {
         os_free(req->path);
         os_free(req);
     }
+
     espconn_delete(conn);
+
     if(conn->proto.tcp != NULL) {
         os_free(conn->proto.tcp);
     }
@@ -372,9 +398,19 @@ void http_connect(httprequest *req, ip_addr_t *addr) {
     espconn_regist_connectcb(conn, connect_callback);
     espconn_regist_disconcb(conn, disconnect_callback);
     espconn_regist_reconcb(conn, error_callback);
+  
+#ifdef TLS_ENABLED
+    if (req->tls) {
+        if (!espconn_secure_ca_enable(TLS_LEVEL_CLIENT, TLS_CA_CRT_SECTOR)) {
+        }
+        espconn_secure_connect(conn);
+    }
+    else 
+#endif 
+    {
+        espconn_connect(conn);
+    }
     
-
-    espconn_connect(conn);
 }
 
 
@@ -405,7 +441,7 @@ void dns_callback(const char *hostname, ip_addr_t *addr, void *arg) {
 static ICACHE_FLASH_ATTR 
 httprequest * create_request(const char *hostname, const char *verb, 
         const char *path, const char *headers, const char * body, 
-        http_callback cb, void *arg) {
+        bool tls, http_callback cb, void *arg) {
 
     httprequest *req = (httprequest *)os_malloc(sizeof(httprequest));
     req->hostname = esp_strdup(hostname);
@@ -419,17 +455,19 @@ httprequest * create_request(const char *hostname, const char *verb,
     req->buffer[0] = '\0'; // Empty string.
     req->user_callback = cb;
     req->arg = arg;
-    
+    req->tls = tls;
+     
     return req;
 }
 
 
 ICACHE_FLASH_ATTR 
-void http_send(const char * hostname, const char *verb, const char * path, 
-        const char *headers, const char * body, http_callback cb, void *arg) {
+void http_send_request(const char * hostname, const char *verb, const char * path, 
+        const char *headers, const char * body, bool tls, http_callback cb, 
+        void *arg) {
 
     httprequest *req = create_request(hostname, verb, path, headers, body,
-            cb, arg);
+            tls, cb, arg);
 
     DEBUG("DNS request\n");
     ip_addr_t addr;
@@ -466,10 +504,11 @@ void unscb(struct unsrecord *rec, void *arg) {
 
 
 ICACHE_FLASH_ATTR 
-void http_send_uns(const char *hostname, const char *verb, const char * path, 
-        const char *headers, const char * body, http_callback cb, void *arg) {
+void http_send_request_uns(const char *hostname, const char *verb, 
+        const char * path, const char *headers, const char * body, bool tls, 
+        http_callback cb, void *arg) {
     httprequest *req = create_request(hostname, verb, path, headers, body,
-            cb, arg);
+            tls, cb, arg);
     uns_discover(req->hostname, unscb, req);
 }
 
