@@ -33,7 +33,8 @@ char * esp_strdup(const char * str) {
     if (str == NULL) {
         return NULL;
     }
-    char * new_str = (char *)os_malloc(os_strlen(str) + 1); // 1 for null character
+    // +1 for null character
+    char * new_str = (char *)os_malloc(os_strlen(str) + 1); 
     if (new_str == NULL) {
         os_printf("esp_strdup: malloc error");
         return NULL;
@@ -200,9 +201,11 @@ void receive_callback(void * arg, char * buf, unsigned short len) {
     // Let's do the equivalent of a realloc().
     const int new_size = req->buffer_size + len;
     char * new_buffer;
-    if (new_size > BUFFER_SIZE_MAX || NULL == (new_buffer = (char *)os_malloc(new_size))) {
+    if ((new_size > BUFFER_SIZE_MAX) || 
+            (NULL == (new_buffer = (char *)os_malloc(new_size)))) {
         os_printf("Response too long (%d)\n", new_size);
-        req->buffer[0] = '\0'; // Discard the buffer to avoid using an incomplete response.
+        // Discard the buffer to avoid using an incomplete response.
+        req->buffer[0] = '\0';
 #if TLS_ENABLED
         if (req->tls)
             espconn_secure_disconnect(conn);
@@ -214,7 +217,8 @@ void receive_callback(void * arg, char * buf, unsigned short len) {
     }
 
     os_memcpy(new_buffer, req->buffer, req->buffer_size);
-    os_memcpy(new_buffer + req->buffer_size - 1 /*overwrite the null character*/, buf, len); // Append new data.
+    // Append new data.
+    os_memcpy(new_buffer + req->buffer_size - 1 , buf, len);
     new_buffer[new_size - 1] = '\0'; // Make sure there is an end of string.
 
     os_free(req->buffer);
@@ -402,7 +406,11 @@ void http_connect(httprequest *req, ip_addr_t *addr) {
 #ifdef TLS_ENABLED
     if (req->tls) {
         if (!espconn_secure_ca_enable(TLS_LEVEL_CLIENT, TLS_CA_CRT_SECTOR)) {
+            ERROR("TLS CA Activation failed");
+            disconnect_callback(conn);
+            return;
         }
+        ERROR("TLS CA Activation success");
         espconn_secure_connect(conn);
     }
     else 
@@ -447,7 +455,7 @@ httprequest * create_request(const char *hostname, const char *verb,
     req->hostname = esp_strdup(hostname);
     req->verb = esp_strdup(verb);
     req->path = esp_strdup(path);
-    req->port = 80;
+    req->port = tls? 443: 80;
     req->headers = esp_strdup(headers);
     req->form_data = esp_strdup(body);
     req->buffer_size = 1;
@@ -462,9 +470,9 @@ httprequest * create_request(const char *hostname, const char *verb,
 
 
 ICACHE_FLASH_ATTR 
-void http_send_request(const char * hostname, const char *verb, const char * path, 
-        const char *headers, const char * body, bool tls, http_callback cb, 
-        void *arg) {
+void http_send_request(const char * hostname, const char *verb, 
+        const char * path, const char *headers, const char * body, bool tls, 
+        http_callback cb, void *arg) {
 
     httprequest *req = create_request(hostname, verb, path, headers, body,
             tls, cb, arg);
@@ -511,4 +519,3 @@ void http_send_request_uns(const char *hostname, const char *verb,
             tls, cb, arg);
     uns_discover(req->hostname, unscb, req);
 }
-
