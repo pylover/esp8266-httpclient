@@ -58,6 +58,9 @@ void http_send_request(
     http_send_request_uns((h), (v), (p), "", "", false, (cb), (a))
 
 /* dns */
+#define https_get(h, p, hdr, b, cb, a) \
+    http_send_request((h), "GET", (p), (hdr), (b), true, (cb), (a));
+
 #define https_send(h, v, p, hdr, b, cb, a) \
     http_send_request((h), (v), (p), (hdr), (b), true, (cb), (a));
 
