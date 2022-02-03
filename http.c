@@ -224,7 +224,7 @@ void receive_callback(void * arg, char * buf, unsigned short len) {
     os_free(req->buffer);
     req->buffer = new_buffer;
     req->buffer_size = new_size;
-    DEBUG("%s\n", req->buffer);
+    // DEBUG("%s\n", req->buffer);
     
     char *contentlength_header = (char *)os_strstr(req->buffer, 
           "Content-Length");
