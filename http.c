@@ -231,7 +231,7 @@ void receive_callback(void * arg, char * buf, unsigned short len) {
     uint16_t contentlength;
     if (contentlength_header) {
         contentlength = atoi(contentlength_header);
-        DEBUG("Content-Length: %d\n", contentlength);
+        DEBUG("Content-Length: %d", contentlength);
         if (contentlength == 0) {
 #if TLS_ENABLED
             if (req->tls)
@@ -251,11 +251,11 @@ void sent_callback(void * arg) {
     httprequest * req = (httprequest *)conn->reverse;
 
     if (req->form_data == NULL) {
-        INFO("HTTP form sent\n");
+        INFO("HTTP form sent");
     }
     else {
         // The headers were sent, now send the contents.
-        DEBUG("Sending request body\n");
+        DEBUG("Sending request body");
 #if TLS_ENABLED
         if (req->tls)
             espconn_secure_sent(conn, (uint8_t *)req->form_data, 
@@ -316,13 +316,13 @@ void connect_callback(void * arg) {
     //os_printf("send http data %d : \n%s \r\n",len,buf);
     os_free(req->headers);
     req->headers = NULL;
-    DEBUG("Sending request header\n");
+    DEBUG("Sending request header");
 }
 
 
 static void ICACHE_FLASH_ATTR 
 disconnect_callback(void * arg) {
-    DEBUG("Disconnected\n");
+    DEBUG("Disconnected");
     struct espconn *conn = (struct espconn *)arg;
 
     if(conn == NULL) {
@@ -410,7 +410,6 @@ void http_connect(httprequest *req, ip_addr_t *addr) {
             disconnect_callback(conn);
             return;
         }
-        ERROR("TLS CA Activation success");
         espconn_secure_connect(conn);
     }
     else 
@@ -440,7 +439,7 @@ void dns_callback(const char *hostname, ip_addr_t *addr, void *arg) {
         os_free(req);
     }
     else {
-        DEBUG("DNS found %s " IPSTR "\n", hostname, IP2STR(addr));
+        DEBUG("DNS found %s " IPSTR, hostname, IP2STR(addr));
         http_connect(req, addr);
     }
 }
@@ -477,14 +476,14 @@ void http_send_request(const char * hostname, const char *verb,
     httprequest *req = create_request(hostname, verb, path, headers, body,
             tls, cb, arg);
 
-    DEBUG("DNS request\n");
+    DEBUG("DNS request");
     ip_addr_t addr;
     // It seems we don't need a real espconn pointer here.
     err_t error = espconn_gethostbyname((struct espconn *)req, hostname, 
             &addr, dns_callback);
 
     if (error == ESPCONN_INPROGRESS) {
-        DEBUG("DNS pending\n");
+        DEBUG("DNS pending");
     }
     else if (error == ESPCONN_OK) {
         // Already in the local names table (or hostname was an IP address), 
@@ -493,7 +492,7 @@ void http_send_request(const char * hostname, const char *verb,
     }
     else {
         if (error == ESPCONN_ARG) {
-            os_printf("DNS arg error %s\n", hostname);
+            ERROR("DNS arg error %s", hostname);
         }
         else {
             os_printf("DNS error code %d\n", error);
