@@ -405,7 +405,15 @@ void http_connect(httprequest *req, ip_addr_t *addr) {
   
 #ifdef TLS_ENABLED
     if (req->tls) {
-        if (!espconn_secure_ca_enable(TLS_LEVEL_CLIENT, TLS_CA_CRT_SECTOR)) {
+        partition_item_t tlscacrt;
+
+        if (!system_partition_get_item(SYSTEM_PARTITION_SSL_CLIENT_CA, 
+                    &tlscacrt)) {
+            ERROR("Get partition information for ssl client ca failed.");
+        }
+
+        if (!espconn_secure_ca_enable(TLS_LEVEL_CLIENT, 
+                    tlscacrt.addr / 0x1000)) {
             ERROR("TLS CA Activation failed");
             disconnect_callback(conn);
             return;
