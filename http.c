@@ -206,7 +206,7 @@ void receive_callback(void * arg, char * buf, unsigned short len) {
         os_printf("Response too long (%d)\n", new_size);
         // Discard the buffer to avoid using an incomplete response.
         req->buffer[0] = '\0';
-#if TLS_ENABLED
+#ifdef TLS_ENABLED
         if (req->tls)
             espconn_secure_disconnect(conn);
         else
@@ -233,11 +233,11 @@ void receive_callback(void * arg, char * buf, unsigned short len) {
         contentlength = atoi(contentlength_header);
         DEBUG("Content-Length: %d", contentlength);
         if (contentlength == 0) {
-#if TLS_ENABLED
+#ifdef TLS_ENABLED
             if (req->tls)
                  espconn_secure_disconnect(conn);
-#endif
             else
+#endif
                  espconn_disconnect(conn);
         }
     }
@@ -256,7 +256,7 @@ void sent_callback(void * arg) {
     else {
         // The headers were sent, now send the contents.
         DEBUG("Sending request body");
-#if TLS_ENABLED
+#ifdef TLS_ENABLED
         if (req->tls)
             espconn_secure_sent(conn, (uint8_t *)req->form_data, 
                     strlen(req->form_data));
